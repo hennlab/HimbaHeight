@@ -131,20 +131,6 @@ length(unique(height_raw_adults_filtered$ID))
 #write.table(height_raw_adults_filtered, "height_raw_adults_filtered_dbgap.txt", sep=" ", row.names=FALSE, col.names=TRUE, quote=FALSE)
 
 
-##### LINEAR MODELS ######
-height_baseline.lm <- lm(Height ~ 1+(1|ID) + YOB + Sex*Fosterage, data=height_raw_adults_filtered)
-summary(height_baseline.lm)
-
-height_raw_Froh1500.lm <- lm(Height ~ 1+(1|ID) + FROH_1500 + YOB + Sex*Fosterage, data=height_raw_adults_filtered)
-summary(height_raw_Froh1500.lm)
-
-# Models with other ROH thresholds
-height_raw_Froh500.lm <- lm(Height ~ 1+(1|ID) + FROH_500 + YOB + Sex*Fosterage, data=height_raw_adults_filtered)
-summary(height_raw_Froh500.lm)
-height_raw_Froh5000.lm <- lm(Height ~ 1+(1|ID) + FROH_5000 + YOB + Sex*Fosterage, data=height_raw_adults_filtered)
-summary(height_raw_Froh5000.lm)
-
-
 ##### SUBSETTING #####
 View(height_raw_adults_filtered)
 length(unique(height_raw_adults_filtered$HMB_ID))
@@ -249,16 +235,27 @@ mean(filtered_indiv_height_means$FROH_1500) ### 0.02661421
 #mean(Males_RAfilt$FROH_1500) ### 0.02650297
 #mean(MalesFost_RAfilt$FROH_1500) ### 0.02650
 
-#### PLOTTING ##### 
-#install.packages("remotes")
-#remotes::install_github("ashenoy-cmbi/grafify@*release")
+#######################################################################
+# Number height observations per individual
+library(dplyr)
+obs <- height_raw_adults_filtered %>% group_by(HMB_ID) %>% 
+  summarize(num_obs = length(Year)) %>% arrange(desc(num_obs))
+obs %>% filter(num_obs == 1) %>% nrow() # n=134
+obs %>% filter(num_obs == 2) %>% nrow() # n=72
+obs %>% filter(num_obs == 3) %>% nrow() # n=35
+obs %>% filter(num_obs == 4) %>% nrow() # n=4
 
-plot(Males_RAfilt$FROH_1500, Males_RAfilt$Height, xlab=expression("F"[ROH]*" 1500"), ylab="Height (cm)", xlim=c(0.00, 0.1), ylim=c(145,200), col="#56B4E9", pch=1, main="")
-points(MalesFost_RAfilt$FROH_1500, MalesFost_RAfilt$Height, pch=17, col="#F0E442")
-points(Females_RAFilt$FROH_1500, Females_RAFilt$Height, pch=1, col="#CC79A7")
-points(FemalesFost_RAfilt$FROH_1500, FemalesFost_RAfilt$Height, pch=17, col="#E69F00")
-points(height_raw_adults_filtered$FROH_1500, predict(height_raw_Froh1500.lm), pch=16, col="#000000")
-legend("topright", legend=c("Females", "Females Fostered", "Males", "Males Fostered"),col=c("#CC79A7", "#E69F00", "#56B4E9", "#F0E442"), pch=c(1,17,1,17))
+# Age Range
+range(height_raw_adults_filtered$YOB) # YOB range: 1919 - 1998
+height_raw_adults_filtered %>% filter(YOB == 1919) # 1 male; 3 obs: '11, '12, '17
+height_raw_adults_filtered %>% filter(YOB == 1998) # earliest obs = age 18 in 2016
+
+# Measurements per year
+height_raw_adults_filtered %>% group_by(Year) %>% 
+  summarize(obs_per_yr = length(ID)) %>% arrange(desc(obs_per_yr)) # the most is n=180 in 2016
+
+########################################
+#### HISTOGRAM PLOTS: HEIGHT & FROH ###
 
 female_indivheightmean <- filtered_indiv_height_means %>%
   filter(Sex == 'Female')
@@ -267,13 +264,29 @@ male_indivheightmean <- filtered_indiv_height_means %>%
   filter(Sex == 'Male')
 head(male_indivheightmean)
 
-hist(male_indivheightmean$Mean_Height, main="", xlab="Height (cm)", ylim=c(0,60), xlim=c(145,200), col=rgb(0,0,167, 127, max=255))
-hist(female_indivheightmean$Mean_Height, col=rgb(204,0,0, 127, max=255), add= TRUE)
-
 newpurple <- rgb(0,0, 167, 127, max=255)
 newpink <- rgb(204,0,0,127, max=255)
 
-legend("topright", legend=c("Males", "Females"), col=c(newpurple, newpink), pch=15)
+par(mfrow=c(1,2))
+par(mar = c(5.1, 4.1, 2.1, 1.1), oma=c(0,0,0,0)) # mar=c(bottom, left, top, right)
+hist(male_indivheightmean$Mean_Height, 
+     main="",
+     xlab="Height (cm)",
+     ylim=c(0,60), xlim=c(145,200), col=rgb(0,0,167, 127, max=255))
+title("A", adj=0)
+hist(female_indivheightmean$Mean_Height, 
+     col=rgb(204,0,0, 127, max=255), 
+     add= TRUE)
+legend("topright", legend=c("Males", "Females"), col=c(newpurple, newpink), pch=15, cex=0.8)
+hist(filtered_indiv_height_means$FROH_1500,
+     breaks=seq(0,0.09,0.005),
+     xlab = expression("FROH 1500+ KB"),
+     main="",
+     col="#44AA99")
+title("B", adj=0)
+par(mfrow=c(1,1)) # return to single plot
+par(mar = c(5.1, 4.1, 4.1, 2.1), oma=c(0,0,0,0)) # return to normal margins
+
 
 shapiro.test(female_indivheightmean$Mean_Height) # Normal distribution of female heights
 shapiro.test(male_indivheightmean$Mean_Height) # Normal distribution of male heights
@@ -281,5 +294,348 @@ shapiro.test(filtered_indiv_height_means$Mean_Height) # Normal dist of everyone 
     
 #col2rgb("#F0E442")
 #col2rgb("#CC79A7")
-       
-       
+
+###############################################################################
+### R script to read the GRM binary file ###
+# From Yang Lab: https://yanglab.westlake.edu.cn/software/gcta/#MakingaGRM
+
+ReadGRMBin=function(prefix, AllN=F, size=4){
+  sum_i=function(i){
+    return(sum(1:i))
+  }
+  BinFileName=paste(prefix,".grm.bin",sep="")
+  NFileName=paste(prefix,".grm.N.bin",sep="")
+  IDFileName=paste(prefix,".grm.id",sep="")
+  id = read.table(IDFileName)
+  n=dim(id)[1]
+  BinFile=file(BinFileName, "rb");
+  grm=readBin(BinFile, n=n*(n+1)/2, what=numeric(0), size=size)
+  NFile=file(NFileName, "rb");
+  if(AllN==T){
+    N=readBin(NFile, n=n*(n+1)/2, what=numeric(0), size=size)
+  }
+  else N=readBin(NFile, n=1, what=numeric(0), size=size)
+  i=sapply(1:n, sum_i)
+  return(list(diag=grm[i], off=grm[-i], id=id, N=N))
+}
+
+setwd("~/Desktop")
+pre_grm <- ReadGRMBin("himba_final245", AllN=F, size=4)
+
+############################
+# Convert output to a matrix
+sum_i=function(i){
+  return(sum(1:i))
+}
+
+gcta2matrix<-function(diag,off,id){
+  mat <- matrix(NA, nrow=length(id), ncol=length(id))
+  for(i in c(1:length(id))){
+    for(j in c(i:length(id))){
+      if(i==j){
+        mat[i,j] <- diag[i] # diag value for self-self value
+      }else{ # j>i
+        count_all<- sum_i(j-1) +i
+        k <- count_all - (j-1)
+        mat[i,j] <- off[k] # off-diag
+        mat[j,i] <- mat[i,j]
+      }
+    }
+  }
+  colnames(mat) <- id
+  rownames(mat) <- id
+  return(mat)
+}
+
+gcta_grm<-gcta2matrix(pre_grm$diag, pre_grm$off, pre_grm$id$V2)
+gcta_grm_lmekin <- bdsmatrix(dim(gcta_grm)[1], gcta_grm[lower.tri(gcta_grm, diag=T)], dimnames=list(pre_grm$id$V2,pre_grm$id$V2))
+
+# bend the matrix to be positive definite
+install.packages("vegan")
+library(vegan)
+is.positive.definite(gcta_grm)
+original.eigen <- eigen(gcta_grm)
+index.negative.eigen <- which(original.eigen$values<10e-4)
+original.eigen$values[index.negative.eigen] <-  10e-4
+new_gcta_grm <- round(original.eigen$vectors%*%diag(original.eigen$values)%*%solve(original.eigen$vectors), 5)
+test <-mantel(gcta_grm, new_gcta_grm)
+
+new_gcta_grm_lmekin <- bdsmatrix(dim(new_gcta_grm)[1], new_gcta_grm[lower.tri(new_gcta_grm, diag=T)], dimnames=list(pre_grm$id$V2,pre_grm$id$V2))
+
+#########################
+## Log transform FROH ##
+
+temp <- filtered_indiv_height_means %>% # use this df because only 1 row per individual(i.e. not multiple height measurements per indiv so Froh distribution will be true, not skewed)
+  mutate(log_froh1500 = log(FROH_1500))
+hist(temp$log_froh1500, xlab="log(Froh1500)", main="")
+shapiro.test(temp$log_froh1500) # p=0.0004
+
+# Log-transform Froh in dataset for models (with all height measurements)
+height_raw_adults_filtered <- height_raw_adults_filtered %>%
+  mutate(log_froh500 = log(FROH_500)) %>%
+  mutate(log_froh1500 = log(FROH_1500)) %>%
+  mutate(log_froh5000 = log(FROH_5000))
+# Cannot take log of 0 (becomes -inf) but some indivs have Froh_5000 values of 0, so replace the "-inf" with a value slightly more negative than the most negative log(FROH_5000) value (-6.286...)
+height_raw_adults_filtered$log_froh5000[height_raw_adults_filtered$log_froh5000=="-Inf"] <- -6.3
+
+############################################################
+### REVISED LINEAR MODELS #####
+################################
+install.packages("coxme")
+library(coxme)
+
+# Note: HMB_ID is the same as ID (same person) but had to change (1|ID) to (1|HMB_ID) because the GRM uses HMB_IDs
+
+height_baseline.lmekin <- lmekin(Height ~ 1+(1|HMB_ID) + YOB + Sex*Fosterage, data=height_raw_adults_filtered, varlist = new_gcta_grm_lmekin)
+height_baseline.lmekin
+
+height_raw_Froh1500.lmekin <- lmekin(Height ~ 1+(1|HMB_ID) + log_froh1500 + YOB + Sex*Fosterage, data=height_raw_adults_filtered, varlist = new_gcta_grm_lmekin)
+height_raw_Froh1500.lmekin
+# de-transform logged value effect size
+exp(0.020050016) # 1.020252
+
+# Other ROH thresholds
+height_raw_Froh500.lmekin <- lmekin(Height ~ 1+(1|HMB_ID) + log_froh500 + YOB + Sex*Fosterage, data=height_raw_adults_filtered, varlist = new_gcta_grm_lmekin)
+height_raw_Froh500.lmekin
+
+height_raw_Froh5000.lmekin <- lmekin(Height ~ 1+(1|HMB_ID) + log_froh5000 + YOB + Sex*Fosterage, data=height_raw_adults_filtered, varlist = new_gcta_grm_lmekin)
+height_raw_Froh5000.lmekin
+
+####################################################
+#### PLOTTING MODELS ##### 
+########################
+
+library(tidyverse)
+library(lme4)
+library(lmerTest)
+
+# lmekin model cannot be plotted (i.e. used to get predicted values), so used same mixed effects model without GRM just for plotting lines
+model_froh.lmer <- lmer(Height ~ 1+(1|HMB_ID) + log_froh1500 + YOB + Sex*Fosterage, data=height_raw_adults_filtered)
+
+height_raw_adults_filtered$pred <- predict(model_froh.lmer)
+
+Females_RAFilt <- height_raw_adults_filtered %>%
+  filter(Sex == "Female") %>%  
+  filter(Fosterage == "No" )
+FemalesFost_RAfilt <- height_raw_adults_filtered %>%
+  filter(Sex == "Female") %>%  
+  filter(Fosterage == "Yes")  
+Males_RAfilt <- height_raw_adults_filtered %>%
+  filter(Sex == "Male") %>%  
+  filter(Fosterage == "No")  
+MalesFost_RAfilt <- height_raw_adults_filtered %>%
+  filter(Sex == "Male") %>%  
+  filter(Fosterage == "Yes")  
+
+height_froh_scatterplot <- ggplot(Males_RAfilt, aes(FROH_1500, Height)) + geom_point(color="#56B4E9", pch=1) + 
+  geom_point(data=MalesFost_RAfilt, aes(FROH_1500, Height), color="#F0E442", pch=17) +
+  geom_point(data=Females_RAFilt, aes(FROH_1500, Height), color="#CC79A7", pch=1) +
+  geom_point(data=FemalesFost_RAfilt, aes(FROH_1500, Height), color="#E69F00", pch=17) +
+  scale_x_continuous(name="FROH 1500") +
+  
+  geom_smooth(data=Males_RAfilt, aes(FROH_1500, pred), color="#56B4E9", method="glm") +
+  geom_smooth(data=MalesFost_RAfilt, aes(FROH_1500, pred), color="#F0E442", method="glm") +
+  geom_smooth(data=Females_RAFilt, aes(FROH_1500, pred), color="#CC79A7", method="glm") +
+  geom_smooth(data=FemalesFost_RAfilt, aes(FROH_1500, pred), color="#E69F00", method="glm")
+
+# create to grab the legend only
+legend_for_plot <- ggplot(Males_RAfilt, aes(FROH_1500, Height, color="#56B4E9")) + geom_point(pch=1) + 
+  geom_point(data=MalesFost_RAfilt, aes(FROH_1500, Height, color="#F0E442"), pch=17) +
+  geom_point(data=Females_RAFilt, aes(FROH_1500, Height, color="#CC79A7"), pch=1) +
+  geom_point(data=FemalesFost_RAfilt, aes(FROH_1500, Height, color="#E69F00"), pch=17) +
+  scale_color_manual(name="Himba Adults",
+                     breaks=c("Males", "Males Fostered", "Females", "Females Fostered"),
+                     values=c("Males"="#56B4E9", "Males Fostered"="#F0E442", "Females"="#CC79A7", "Females Fostered"="#E69F00"))
+
+library(gridExtra)
+get_legend<-function(myggplot){
+  tmp <- ggplot_gtable(ggplot_build(myggplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  return(legend)
+} # legend function to grab legend from another plot
+legend_height_scatterplot <- get_legend(legend_for_plot) # grab legend
+
+grid.arrange(height_froh_scatterplot, legend_height_scatterplot, ncol=2, widths=c(4.5, 1)) # plot the scatter plot and legend
+
+#######################################################################
+### Thin Test (from Swinford et al 2022) ###
+##### THIN TEST & RMSE #####
+
+setwd("~/Desktop/UC Davis/HENN LAB/Himba Project/F_ROH/DifFroh_Analysis")
+
+thinned_1 <- read.table("1_ThinTest_snp50_missing2_het1_kb1500.hom.indiv", header=TRUE)
+thinned_2 <- read.table("2_ThinTest_snp50_missing2_het1_kb1500.hom.indiv", header=TRUE)
+thinned_3 <- read.table("3_ThinTest_snp50_missing2_het1_kb1500.hom.indiv", header=TRUE)
+thinned_4 <- read.table("4_ThinTest_snp50_missing2_het1_kb1500.hom.indiv", header=TRUE)
+thinned_5 <- read.table("5_ThinTest_snp50_missing2_het1_kb1500.hom.indiv", header=TRUE)
+thinned_6 <- read.table("6_ThinTest_snp50_missing2_het1_kb1500.hom.indiv", header=TRUE)
+thinned_7 <- read.table("7_ThinTest_snp50_missing2_het1_kb1500.hom.indiv", header=TRUE)
+thinned_8 <- read.table("8_ThinTest_snp50_missing2_het1_kb1500.hom.indiv", header=TRUE)
+thinned_9 <- read.table("9_ThinTest_snp50_missing2_het1_kb1500.hom.indiv", header=TRUE)
+thinned_10 <- read.table("10_ThinTest_snp50_missing2_het1_kb1500.hom.indiv", header=TRUE)
+
+thin1_froh <- thinned_1 %>%
+  mutate(Froh1_1500 = (KB*1000)/2787160584)
+thin2_froh <- thinned_2 %>%
+  mutate(Froh2_1500 = (KB*1000)/2789881009)
+thin3_froh <- thinned_3 %>%
+  mutate(Froh3_1500 = (KB*1000)/2790651978)
+thin4_froh <- thinned_4 %>%
+  mutate(Froh4_1500 = (KB*1000)/2790821199)
+thin5_froh <- thinned_5 %>%
+  mutate(Froh5_1500 = (KB*1000)/2790972299)
+thin6_froh <- thinned_6 %>%
+  mutate(Froh6_1500 = (KB*1000)/2790291177)
+thin7_froh <- thinned_7 %>%
+  mutate(Froh7_1500 = (KB*1000)/2787645606)
+thin8_froh <- thinned_8 %>%
+  mutate(Froh8_1500 = (KB*1000)/2791488892)
+thin9_froh <- thinned_9 %>%
+  mutate(Froh9_1500 = (KB*1000)/2787721777)
+thin10_froh <- thinned_10 %>%
+  mutate(Froh10_1500 = (KB*1000)/2790940619)
+
+ThinTest_Froh <- H3Africa_auto_Froh %>%
+  select(IID, Froh_1500)
+ThinTest_Froh$Froh1_1500 = thin1_froh$Froh1_1500[match(ThinTest_Froh$IID, thin1_froh$IID)]
+ThinTest_Froh$Froh2_1500 = thin2_froh$Froh2_1500[match(ThinTest_Froh$IID, thin2_froh$IID)]
+ThinTest_Froh$Froh3_1500 = thin3_froh$Froh3_1500[match(ThinTest_Froh$IID, thin3_froh$IID)]
+ThinTest_Froh$Froh4_1500 = thin4_froh$Froh4_1500[match(ThinTest_Froh$IID, thin4_froh$IID)]
+ThinTest_Froh$Froh5_1500 = thin5_froh$Froh5_1500[match(ThinTest_Froh$IID, thin5_froh$IID)]
+ThinTest_Froh$Froh6_1500 = thin6_froh$Froh6_1500[match(ThinTest_Froh$IID, thin6_froh$IID)]
+ThinTest_Froh$Froh7_1500 = thin7_froh$Froh7_1500[match(ThinTest_Froh$IID, thin7_froh$IID)]
+ThinTest_Froh$Froh8_1500 = thin8_froh$Froh8_1500[match(ThinTest_Froh$IID, thin8_froh$IID)]
+ThinTest_Froh$Froh9_1500 = thin9_froh$Froh9_1500[match(ThinTest_Froh$IID, thin9_froh$IID)]
+ThinTest_Froh$Froh10_1500 = thin10_froh$Froh10_1500[match(ThinTest_Froh$IID, thin10_froh$IID)]
+head(ThinTest_Froh)
+
+# PLOT OF THIN TESTS (Looks good!)
+plot(ThinTest_Froh$Froh_1500, ThinTest_Froh$Froh1_1500,
+     xlab="FROH (original thinned set)",
+     ylab="FROH: Thin Tests (n=10)",
+     main="Individual Comparison of Multiple Thin Tests (plink)")
+points(ThinTest_Froh$Froh_1500, ThinTest_Froh$Froh2_1500, col="gold")
+points(ThinTest_Froh$Froh_1500, ThinTest_Froh$Froh3_1500, col="red")
+points(ThinTest_Froh$Froh_1500, ThinTest_Froh$Froh4_1500, col="blue")
+points(ThinTest_Froh$Froh_1500, ThinTest_Froh$Froh5_1500, col="purple")
+points(ThinTest_Froh$Froh_1500, ThinTest_Froh$Froh6_1500, col="pink")
+points(ThinTest_Froh$Froh_1500, ThinTest_Froh$Froh7_1500, col="turquoise")
+points(ThinTest_Froh$Froh_1500, ThinTest_Froh$Froh8_1500, col="green")
+points(ThinTest_Froh$Froh_1500, ThinTest_Froh$Froh9_1500, col="gray50")
+points(ThinTest_Froh$Froh_1500, ThinTest_Froh$Froh10_1500, col="magenta")
+legend("topleft", legend=c("test 1", "test 2", "test 3", "test 4", "test 5", "test 6", "test 7", "test 8", "test 9", "test 10"), col=c("black", "gold", "red", "blue", "purple", "pink", "turquoise", "green", "gray50", "magenta"), pch=1, cex=0.8)
+
+# Set up for RMSE Calculation
+ThinTest_FrohDifs <- ThinTest_Froh %>%
+  mutate(Dif1 = abs(Froh1_1500-Froh_1500)) %>%
+  mutate(Dif2 = abs(Froh2_1500-Froh_1500)) %>%
+  mutate(Dif3 = abs(Froh3_1500-Froh_1500)) %>%
+  mutate(Dif4 = abs(Froh4_1500-Froh_1500)) %>%
+  mutate(Dif5 = abs(Froh5_1500-Froh_1500)) %>%
+  mutate(Dif6 = abs(Froh6_1500-Froh_1500)) %>%
+  mutate(Dif7 = abs(Froh7_1500-Froh_1500)) %>%
+  mutate(Dif8 = abs(Froh8_1500-Froh_1500)) %>%
+  mutate(Dif9 = abs(Froh9_1500-Froh_1500)) %>%
+  mutate(Dif10 = abs(Froh10_1500-Froh_1500)) %>%
+  mutate(AvgDif = rowMeans(.[, 13:22]))
+ExpectedDif <- rep(0, 504)
+ThinTest_FrohDifs <- cbind(ThinTest_FrohDifs, ExpectedDif)
+View(ThinTest_FrohDifs)
+
+## RMSE Calculation! ##
+#install.packages("Metrics")
+library(Metrics)
+rmse(ThinTest_FrohDifs$AvgDif, ThinTest_FrohDifs$ExpectedDif) # RMSE = 0.00058
+###
+
+
+####################################################
+### Power Calculation ###
+#########################
+
+# Use filtered_indiv_height_means dataset: only one row per individuals and uses mean heights per indiv
+
+install.packages("data.table")
+library(data.table)
+
+sim_height <- function(size=250, # sample size
+                       froh.data = NA, # a vector of simulated fROH in individuals
+                       h2.froh = 0.004, # proportion of height variance explained by fROH
+                       beta.froh = -9){ # effect size by fROH (unit as 100%)
+  height_froh <- froh.data*beta.froh
+  height_rest <- rnorm(size, 0, sd = sqrt(var(height_froh)*(1-h2.froh)/h2.froh))
+  height <- height_froh + height_rest
+  return(height)
+}
+
+n <- 250 # assign a sample to n
+h2.froh <- 0.004 # proportion of variance of height explained by froh
+sd_height <- sd(filtered_indiv_height_means$Mean_Height)
+mean_height <- mean(filtered_indiv_height_means$Mean_Height)
+froh.effect <- -0.012*100*sd_height # McQuillan et al., scale unit of rROH from 1% to 1 
+
+# Simulate froh by random sampling from the current froh distribution
+pwrs2 <- c()
+for(j in c(1:10)){
+  ps <- c() # record p-val
+  for(i in c(1:1000)){
+    sim.froh <- sample(filtered_indiv_height_means$FROH_1500, size=n, replace=T)
+    sim.height <- sim_height(size=n, froh.data=sim.froh,
+                             h2.froh=h2.froh, 
+    )
+    p <- as.numeric(summary(lm(sim.height~sim.froh))$coefficients[2,4])
+    ps <- c(ps, p)
+  }
+  pwr <- length(which(ps<0.05))/ length(ps)
+  pwrs2 <- c(pwrs2, pwr)
+}
+
+pwrs2
+range(pwrs2)
+
+# Results with 10 reps
+# N=250: 15~20%
+# N=1000: 50~53%
+# N=2000: 80~84%
+# For ~80% 
+
+#############################
+### Check a single time point
+
+# We know that not all years have the same number of measurements...which one had the most? 2016?
+height_raw_adults_filtered %>% group_by(Year) %>% 
+  summarize(num = length(HMB_ID)) %>% arrange(desc(num))
+# 2016 is n=180, 2017 is n=68, continues descending
+
+# Filter for year=2016 only
+
+heights_2016 <- height_raw_adults_filtered %>%
+  filter(Year == 2016)
+
+# Use PCs because other function will not work without a random effect (i.e. with ID), so cannot use the GRM
+pcs <- read.table("~/Dropbox/Natalie'sStuff/HimbaHeight_BrennaG/himba_height_3pcs.txt", header=T)
+head(pcs)
+heights_2016$PC1 = pcs$pc1[match(heights_2016$HMB_ID, pcs$IID)]
+heights_2016$PC2 = pcs$pc2[match(heights_2016$HMB_ID, pcs$IID)]
+heights_2016$PC3 = pcs$pc3[match(heights_2016$HMB_ID, pcs$IID)]
+
+# model for single time point (2016)
+heights_2016.lm <- lm(Height ~ log_froh1500 + YOB + Sex*Fosterage + PC1 + PC2 + PC3, data=heights_2016)
+summary(heights_2016.lm) # still no significance
+
+### Variance in height
+indiv_height_var <- height_raw_adults_filtered %>% group_by(HMB_ID) %>% 
+  summarize(indiv_var = var(Height)) %>% arrange(desc(indiv_var)) %>% 
+  filter(!is.na(indiv_var))
+hist(indiv_height_var$indiv_var,
+     breaks=seq(0,100,2))
+View(indiv_height_var)
+median(indiv_height_var$indiv_var) # 0.72
+mean(indiv_height_var$indiv_var) # 3.12
+
+test_remOutlier <- height_raw_adults_filtered[-38,]
+test_remOutlier %>% filter(HMB_ID == "HMB037")
+
+test_remOutlier.lmekin <- lmekin(Height ~ 1+(1|HMB_ID) + log_froh1500 + YOB + Sex*Fosterage, data=test_remOutlier, varlist = new_gcta_grm_lmekin)
+test_remOutlier.lmekin # No change after removing extreme outlier
