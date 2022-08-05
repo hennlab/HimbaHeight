@@ -391,8 +391,6 @@ height_baseline.lmekin
 
 height_raw_Froh1500.lmekin <- lmekin(Height ~ 1+(1|HMB_ID) + log_froh1500 + YOB + Sex*Fosterage, data=height_raw_adults_filtered, varlist = new_gcta_grm_lmekin)
 height_raw_Froh1500.lmekin
-# de-transform logged value effect size
-exp(0.020050016) # 1.020252
 
 # Other ROH thresholds
 height_raw_Froh500.lmekin <- lmekin(Height ~ 1+(1|HMB_ID) + log_froh500 + YOB + Sex*Fosterage, data=height_raw_adults_filtered, varlist = new_gcta_grm_lmekin)
